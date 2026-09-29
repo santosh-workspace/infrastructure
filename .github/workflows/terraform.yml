@@ -1,0 +1,139 @@
+# Sequential Terraform deployment: Networking -> IAM -> EKS/ECR.
+#
+# - Pull request → terraform plan only (all three stacks, in order).
+# - Push to main → terraform apply -auto-approve (all three stacks, in order).
+#
+# Prerequisites (GitHub repo → Settings → Secrets and variables → Actions):
+#   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
+#
+# Notes:
+# - Terraform >= 1.10.0 supports S3 NATIVE state locking (backend
+#   `use_lockfile = true`, no DynamoDB table needed). Ensure each stack's
+#   backend block enables it once you wire the S3 backend.
+# - If a stack needs var files, append e.g.
+#   `-var-file=../global.tfvars` to the plan/apply commands below.
+
+name: Terraform Sequential Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Avoid overlapping applies on main.
+concurrency:
+  group: terraform-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  TF_VERSION: ">= 1.10.0"
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+
+jobs:
+  # ---------------------------------------------------------------- Step 1
+  networking:
+    name: "Step 1: Networking"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dev/networking
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Terraform Plan (PR)
+        if: github.event_name == 'pull_request'
+        run: terraform plan -input=false
+
+      - name: Terraform Apply (push to main)
+        if: github.event_name == 'push'
+        run: terraform apply -auto-approve -input=false
+
+  # ---------------------------------------------------------------- Step 2
+  iam:
+    name: "Step 2: IAM & Security"
+    runs-on: ubuntu-latest
+    needs: networking
+    defaults:
+      run:
+        working-directory: dev/iam
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Terraform Plan (PR)
+        if: github.event_name == 'pull_request'
+        run: terraform plan -input=false
+
+      - name: Terraform Apply (push to main)
+        if: github.event_name == 'push'
+        run: terraform apply -auto-approve -input=false
+
+  # ---------------------------------------------------------------- Step 3
+  eks:
+    name: "Step 3: Cluster/Compute (EKS & ECR)"
+    runs-on: ubuntu-latest
+    needs: iam
+    defaults:
+      run:
+        working-directory: dev/eks
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Terraform Plan (PR)
+        if: github.event_name == 'pull_request'
+        run: terraform plan -input=false
+
+      - name: Terraform Apply (push to main)
+        if: github.event_name == 'push'
+        run: terraform apply -auto-approve -input=false
