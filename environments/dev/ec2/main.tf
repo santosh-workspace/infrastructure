@@ -12,7 +12,7 @@ terraform {
   # NOTE: backend blocks accept NO variables; values below are static.
   # Create the bucket first (see README), then replace the placeholder.
   backend "s3" {
-    bucket       = "REPLACE_WITH_STATE_BUCKET"
+    bucket       = "infra-terraform-state"
     key          = "dev/ec2/terraform.tfstate"
     region       = "ap-south-1"
     encrypt      = true
