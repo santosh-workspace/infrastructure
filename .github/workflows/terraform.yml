@@ -1,9 +1,14 @@
-# Terraform EC2 deployment.
+# Terraform EC2 deployment with manual approval.
 #
-# - Pull request → terraform plan only.
-# - Push to main → terraform apply -auto-approve.
+# - Pull request → plan only (no approval, no apply).
+# - Push to main → plan runs, workflow PAUSES for manual approval,
+#   then apply runs against the exact approved plan file.
 #
-# Prerequisites (GitHub repo → Settings → Secrets and variables → Actions):
+# REQUIRED one-time repo setup (otherwise apply will NOT pause):
+#   GitHub repo → Settings → Environments → New environment → name it
+#   "production" → check "Required reviewers" → add yourself as reviewer.
+#
+# Secrets needed (Settings → Secrets and variables → Actions):
 #   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
 # (AWS_REGION must match aws_region in environments/dev/global.tfvars.)
 
@@ -18,7 +23,7 @@ on:
 permissions:
   contents: read
 
-# Avoid overlapping applies on main.
+# Avoid overlapping runs on main.
 concurrency:
   group: terraform-${{ github.ref }}
   cancel-in-progress: false
@@ -26,14 +31,15 @@ concurrency:
 env:
   TF_VERSION: ">= 1.10.0"
   AWS_REGION: ${{ secrets.AWS_REGION }}
+  WORKING_DIR: environments/dev/ec2
 
 jobs:
-  ec2:
-    name: "EC2 Stack"
+  plan:
+    name: "Terraform Plan"
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: environments/dev/ec2
+        working-directory: ${{ env.WORKING_DIR }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,10 +59,54 @@ jobs:
       - name: Terraform Init
         run: terraform init -input=false
 
-      - name: Terraform Plan (PR)
-        if: github.event_name == 'pull_request'
-        run: terraform plan -var-file=../global.tfvars -input=false
+      - name: Terraform Plan
+        run: terraform plan -var-file=../global.tfvars -input=false -out=tfplan
 
-      - name: Terraform Apply (push to main)
+      # Stash the approved plan so apply uses exactly what was reviewed.
+      - name: Upload plan artifact
         if: github.event_name == 'push'
-        run: terraform apply -var-file=../global.tfvars -auto-approve -input=false
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: ${{ env.WORKING_DIR }}/tfplan
+          retention-days: 7
+
+  apply:
+    name: "Terraform Apply (needs approval)"
+    runs-on: ubuntu-latest
+    needs: plan
+    # PRs stop after plan. Pushes wait for approval, then apply.
+    if: github.event_name == 'push'
+    # ⏸ Approval gate: workflow pauses here until a "production"
+    # environment reviewer approves (see header comment for setup).
+    environment: production
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Download plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: .
+
+      - name: Terraform Apply (approved plan)
+        run: terraform apply -input=false tfplan
