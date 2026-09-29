@@ -7,6 +7,7 @@ in the account's default VPC. No custom networking, IAM, or extra resources.
 
 ```text
 infrastructure/
+├── bootstrap/                  # one-time remote-state bucket (S3 + versioning + SSE + TLS-only)
 ├── environments/
 │   └── dev/
 │       ├── global.tfvars         # shared dev values (region, project, EC2 settings)
@@ -31,7 +32,11 @@ gitignored `terraform.tfvars` override).
 ## Quick start
 
 ```bash
-cd environments/dev/ec2
+# 0. One-time: create the remote-state bucket
+cd bootstrap
+terraform init
+terraform apply   # import/adopts infra-terraform-state-<account>-<region>
+cd ../environments/dev/ec2
 # edit ../global.tfvars (region, instance type/name) as needed
 terraform init
 terraform fmt -check

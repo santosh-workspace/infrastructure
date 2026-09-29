@@ -22,25 +22,16 @@ VPC (`plan` will tell you if none exists).
 ## Remote state (required for CI)
 
 State lives in S3 with native locking so every runner shares one state file.
-One-time setup — create the bucket, then put its name in `main.tf`:
+The bucket is managed by the `bootstrap/` stack — run that once first:
 
 ```bash
-export AWS_REGION="ap-south-1"
-BUCKET="smart-finance-tfstate-<account-id>"   # globally unique; use your account ID
-
-aws s3api create-bucket --bucket "$BUCKET" --region "$AWS_REGION" \
-  --create-bucket-configuration LocationConstraint="$AWS_REGION"
-aws s3api put-bucket-versioning --bucket "$BUCKET" \
-  --versioning-configuration Status=Enabled
-aws s3api put-bucket-encryption --bucket "$BUCKET" \
-  --server-side-encryption-configuration \
-  '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
-aws s3api put-public-access-block --bucket "$BUCKET" \
-  --public-access-block-configuration \
-  BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+cd ../../../bootstrap
+terraform init
+terraform apply   # creates infra-terraform-state-<account>-<region>
 ```
 
-Then `terraform init` (add `-migrate-state` if a local state file exists).
+Then return here and `terraform init` (add `-migrate-state` if a local state
+file exists).
 Locked runs leave a `.tflock` object next to the state; a stale lock from a
 killed run is released with `terraform force-unlock <LOCK_ID>`.
 
