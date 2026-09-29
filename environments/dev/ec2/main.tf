@@ -10,9 +10,9 @@ terraform {
 
   # Shared remote state (S3 native locking — no DynamoDB needed).
   # NOTE: backend blocks accept NO variables; values below are static.
-  # Create the bucket first (see README), then replace the placeholder.
+  # Bucket is created by ../../../../bootstrap (run that first).
   backend "s3" {
-    bucket       = "infra-terraform-state"
+    bucket       = "infra-terraform-state-614020738587-ap-south-1"
     key          = "dev/ec2/terraform.tfstate"
     region       = "ap-south-1"
     encrypt      = true
