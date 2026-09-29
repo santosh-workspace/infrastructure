@@ -1,11 +1,22 @@
 terraform {
-  required_version = ">= 1.5.0"
+  required_version = ">= 1.10.0"
 
   required_providers {
     aws = {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+  }
+
+  # Shared remote state (S3 native locking — no DynamoDB needed).
+  # NOTE: backend blocks accept NO variables; values below are static.
+  # Create the bucket first (see README), then replace the placeholder.
+  backend "s3" {
+    bucket       = "infra-terraform-state"
+    key          = "dev/ec2/terraform.tfstate"
+    region       = "ap-south-1"
+    encrypt      = true
+    use_lockfile = true
   }
 }
 
