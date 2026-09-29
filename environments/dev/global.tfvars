@@ -6,7 +6,7 @@
 # gitignored terraform.tfvars override for anything sensitive).
 
 # Change to your region. Must match the AWS provider region you use.
-aws_region = "eu-central-1"
+aws_region = "ap-south-1"
 
 project_name = "smart-finance-calculator"
 
