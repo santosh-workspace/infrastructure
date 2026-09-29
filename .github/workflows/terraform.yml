@@ -106,7 +106,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: tfplan
-          path: .
+          path: ${{ env.WORKING_DIR }}
 
       - name: Terraform Apply (approved plan)
         run: terraform apply -input=false tfplan
