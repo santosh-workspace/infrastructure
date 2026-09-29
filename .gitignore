@@ -1,0 +1,45 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfstate.*
+!*.tfstate.example
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+# Local / secret overrides — never commit.
+# NOTE: environments/dev/global.tfvars is intentionally TRACKED shared dev
+# config. Keep secrets out of it; put personal or sensitive values in a
+# gitignored terraform.tfvars instead.
+terraform.tfvars
+!terraform.tfvars.example
+tfplan
+tfplan.*
+*.out
+
+# Terragrunt / OpenTofu
+.terragrunt-cache/
+
+# Credentials — never commit
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+.aws/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Direnv / local env
+.env
+.envrc.local
